@@ -32,8 +32,7 @@ object UtilityFunction extends Logging {
         .map { case (dir, dateStr) =>
           // Parse the date string into a YearMonth object
           (dir, YearMonth.parse(dateStr, dateFormatter))
-        }
-        .maxBy(_._2) // Find the directory with the maximum (most recent) YearMonth
+        }.maxBy(_._2) // Find the directory with the maximum (most recent) YearMonth
 
       mostRecentDateDir._1.getAbsolutePath // Return the absolute path of the most recent date directory
     } else {
