@@ -1,4 +1,4 @@
-name := "Project_Spark_Scala"
+name := "ZIP to CSV Converter"
 
 version := "0.1"
 
