@@ -1,8 +1,10 @@
 package scala.spark.org.utility
 
 import java.io.File
+import java.nio.file.{Files, Paths, StandardCopyOption}
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.util.zip.ZipFile
 import scala.spark.org.common.logger.Logging
 import scala.util.matching.Regex
 
@@ -41,4 +43,49 @@ object UtilityFunction extends Logging {
     }
   }
 
+  /**
+   * Unzips all ZIP files found in a given directory.
+   *
+   * @param zipDir     The directory containing ZIP files.
+   * @param extractDir The directory where extracted files should be placed.
+   * @return A sequence of paths to the extracted files.
+   */
+  def unzipFilesInDir(zipDir: String, extractDir: String): Seq[String] = {
+    logger.info("Started processing unzip file in directory method")
+    val zipFiles = new File(zipDir).listFiles().filter(_.getName.endsWith(".zip"))
+    zipFiles.flatMap { zipFile =>
+      val extractedFiles = unzipFile(zipFile.getAbsolutePath, extractDir)
+      extractedFiles
+    }
+  }
+
+
+  /**
+   * Unzips a single ZIP file to the specified directory, adding a .csv extension to each extracted file.
+   *
+   * @param zipFilePath The path to the ZIP file.
+   * @param extractDir  The directory where files should be extracted.
+   * @return A sequence of paths to the extracted files.
+   */
+  private def unzipFile(zipFilePath: String, extractDir: String): Seq[String] = {
+    val zipFile = new ZipFile(zipFilePath)
+    val entries = zipFile.entries()
+    val extractedFilePaths = scala.collection.mutable.ListBuffer[String]()
+
+    while (entries.hasMoreElements) {
+      val entry = entries.nextElement()
+      if (!entry.isDirectory) {
+        val newFilePath = Paths.get(extractDir, entry.getName + ".csv")
+        Files.createDirectories(newFilePath.getParent)
+
+        val inputStream = zipFile.getInputStream(entry)
+        Files.copy(inputStream, newFilePath, StandardCopyOption.REPLACE_EXISTING)
+        inputStream.close()
+
+        extractedFilePaths += newFilePath.toString
+      }
+    }
+    zipFile.close()
+    extractedFilePaths
+  }
 }
