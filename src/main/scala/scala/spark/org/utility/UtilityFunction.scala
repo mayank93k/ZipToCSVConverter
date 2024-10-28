@@ -1,10 +1,11 @@
 package scala.spark.org.utility
 
+import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import play.api.libs.json._
 
-import java.io.{File, FileInputStream, FileOutputStream}
+import java.io.File
 import java.nio.file.{Files, Paths, StandardCopyOption}
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -81,7 +82,7 @@ object UtilityFunction extends Logging {
     while (entries.hasMoreElements) {
       val entry = entries.nextElement()
       if (!entry.isDirectory) {
-        val newFilePath = Paths.get(extractDir, entry.getName + ".csv")
+        val newFilePath = Paths.get(extractDir, entry.getName)
         Files.createDirectories(newFilePath.getParent)
 
         val inputStream = zipFile.getInputStream(entry)
@@ -167,36 +168,24 @@ object UtilityFunction extends Logging {
   }
 
   /**
-   * Merge part files into a single CSV file
+   * Moves a file from a temporary location to an actual location in HDFS.
    *
-   * @param tempOutputDir   : The directory where processed file will be temporarily saved.
-   * @param finalOutputFile : The directory where the processed files will be saved.
+   * @param tempOutputDir   The path of the temporary file.
+   * @param finalOutputFile The destination path where the file will be moved.
    */
   private def mergePartFiles(tempOutputDir: String, finalOutputFile: String): Unit = {
-    val tempDir = new java.io.File(tempOutputDir)
+    val tempDir = new File(tempOutputDir)
 
     // Find all part files in the temp directory
     val partFiles = tempDir.listFiles().filter(_.getName.startsWith("part-"))
 
-    // Create an output stream for the final output file
-    val outputStream = new FileOutputStream(finalOutputFile)
+    // Create a new output file
+    val outputFile = new File(finalOutputFile)
 
-    // Define a buffer size (e.g., 8KB)
-    val buffer = new Array[Byte](8 * 1024)
-
-    // Read each part file and write its content to the output stream
+    // Use FileUtils to copy and merge part files into the final output file
     partFiles.foreach { partFile =>
-      val inputStream = new FileInputStream(partFile)
-      var bytesRead = inputStream.read(buffer)
-      while (bytesRead != -1) {
-        outputStream.write(buffer, 0, bytesRead)
-        bytesRead = inputStream.read(buffer)
-      }
-      inputStream.close()
+      FileUtils.writeByteArrayToFile(outputFile, FileUtils.readFileToByteArray(partFile), true)
     }
-
-    // Close the output stream after all parts are written
-    outputStream.close()
   }
 
   /**
@@ -216,8 +205,8 @@ object UtilityFunction extends Logging {
     logger.info(s"Reading file with selected schema: $filePath and file name is: $keyword")
 
     val readDataFrame = spark.read
-      .option("header", "false")
-      .option("delimiter", ";")
+      .option("header", "true")
+      .option("delimiter", ",")
       .schema(schema)
       .csv(filePath)
 

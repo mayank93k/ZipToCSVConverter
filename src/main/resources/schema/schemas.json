@@ -1,39 +1,29 @@
 {
-  "CNAE": {
-    "keyword": "CNAE",
+  "Population": {
+    "keyword": "Population",
     "fields": [
       {
-        "name": "CNAE_col1",
+        "name": "Number",
         "type": "StringType"
       },
       {
-        "name": "CNAE_col2",
-        "type": "StringType"
-      }
-    ]
-  },
-  "MOTI": {
-    "keyword": "MOTI",
-    "fields": [
-      {
-        "name": "MOTI_colA",
+        "name": "Year",
         "type": "StringType"
       },
       {
-        "name": "MOTI_colB",
-        "type": "StringType"
-      }
-    ]
-  },
-  "MUNIC": {
-    "keyword": "MUNIC",
-    "fields": [
-      {
-        "name": "MUNIC_colX",
+        "name": "Series",
         "type": "StringType"
       },
       {
-        "name": "MUNIC_colY",
+        "name": "Value",
+        "type": "StringType"
+      },
+      {
+        "name": "Footnotes",
+        "type": "StringType"
+      },
+      {
+        "name": "Source",
         "type": "StringType"
       }
     ]
