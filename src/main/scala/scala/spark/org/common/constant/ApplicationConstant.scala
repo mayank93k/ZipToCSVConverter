@@ -5,4 +5,6 @@ object ApplicationConstant {
   val ExtractCsvFileDir = "extracted/files"
   val OutputCsvPath = "transformed/files"
   val RegexDatePattern = """\d{4}-\d{2}"""
+  val schemaConfigPath = "src/main/resources/schema/schemas.json"
+  val TempOutputDir = "temp/files"
 }
