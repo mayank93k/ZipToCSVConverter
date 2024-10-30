@@ -1,2 +1,2 @@
 # ZipToCSVConverter
-Unzip all the ZIP file and and add convert it to CSV file
+Converts a zip file containing data files to a single csv format.

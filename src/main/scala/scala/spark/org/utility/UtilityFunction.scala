@@ -1,11 +1,10 @@
 package scala.spark.org.utility
 
-import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import play.api.libs.json._
 
-import java.io.File
+import java.io.{BufferedWriter, File, FileWriter}
 import java.nio.file.{Files, Paths, StandardCopyOption}
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -53,15 +52,16 @@ object UtilityFunction extends Logging {
   /**
    * Unzips all ZIP files found in a given directory.
    *
-   * @param zipDir     The directory containing ZIP files.
-   * @param extractDir The directory where extracted files should be placed.
+   * @param zipDir                   : The directory containing ZIP files.
+   * @param extractDir               : The directory where extracted files should be placed.
+   * @param extractedRecentDateValue : Most recent extracted date.
    * @return A sequence of paths to the extracted files.
    */
-  def unzipFilesInDir(zipDir: String, extractDir: String): Seq[String] = {
+  def unzipFilesInDir(zipDir: String, extractDir: String, extractedRecentDateValue: Option[String]): Seq[String] = {
     logger.info("Started processing unzip file in directory method")
     val zipFiles = new File(zipDir).listFiles().filter(_.getName.endsWith(".zip"))
     zipFiles.flatMap { zipFile =>
-      val extractedFiles = unzipFile(zipFile.getAbsolutePath, extractDir)
+      val extractedFiles = unzipFile(zipFile.getAbsolutePath, extractDir, extractedRecentDateValue)
       extractedFiles
     }
   }
@@ -70,11 +70,12 @@ object UtilityFunction extends Logging {
   /**
    * Unzips a single ZIP file to the specified directory, adding a .csv extension to each extracted file.
    *
-   * @param zipFilePath The path to the ZIP file.
-   * @param extractDir  The directory where files should be extracted.
+   * @param zipFilePath              :The path to the ZIP file.
+   * @param extractDir               :The directory where files should be extracted.
+   * @param extractedRecentDateValue : Most recent extracted date.
    * @return A sequence of paths to the extracted files.
    */
-  private def unzipFile(zipFilePath: String, extractDir: String): Seq[String] = {
+  private def unzipFile(zipFilePath: String, extractDir: String, extractedRecentDateValue: Option[String]): Seq[String] = {
     val zipFile = new ZipFile(zipFilePath)
     val entries = zipFile.entries()
     val extractedFilePaths = scala.collection.mutable.ListBuffer[String]()
@@ -82,7 +83,7 @@ object UtilityFunction extends Logging {
     while (entries.hasMoreElements) {
       val entry = entries.nextElement()
       if (!entry.isDirectory) {
-        val newFilePath = Paths.get(extractDir, entry.getName)
+        val newFilePath = Paths.get(extractDir + "/" + extractedRecentDateValue.get + "/", entry.getName)
         Files.createDirectories(newFilePath.getParent)
 
         val inputStream = zipFile.getInputStream(entry)
@@ -157,14 +158,14 @@ object UtilityFunction extends Logging {
    * @param filePath : The path of the extracted CSV file to process.
    * @param schemas  : A map of schemas with keywords for identification.
    */
-  def readTransformAndWriteFile(spark: SparkSession, filePath: String, schemas: Map[String, (String, StructType)]): Unit = {
+  def readTransformAndWriteFile(spark: SparkSession, filePath: String, schemas: Map[String, (String, StructType)], extractedDate: Option[String]): Unit = {
     logger.info("Read the file with the appropriate schema")
     val (parsedDataFrame, keyword) = readCsvWithSchema(spark, filePath, schemas)
 
     logger.info("Transform the DataFrame")
     val transformedDf = transformFiles(spark, parsedDataFrame)
 
-    writeCsvFile(transformedDf, keyword)
+    writeCsvFile(transformedDf, keyword, extractedDate)
   }
 
   /**
@@ -176,15 +177,45 @@ object UtilityFunction extends Logging {
   private def mergePartFiles(tempOutputDir: String, finalOutputFile: String): Unit = {
     val tempDir = new File(tempOutputDir)
 
-    // Find all part files in the temp directory
-    val partFiles = tempDir.listFiles().filter(_.getName.startsWith("part-"))
+    // Ensure the temp directory exists
+    require(tempDir.exists() && tempDir.isDirectory, s"Temp directory $tempOutputDir does not exist or is not a directory")
 
-    // Create a new output file
-    val outputFile = new File(finalOutputFile)
+    // Find all part files in the temp directory and sort them to maintain order
+    val partFiles = tempDir.listFiles().filter(_.getName.startsWith("part-")).sortBy(_.getName)
 
-    // Use FileUtils to copy and merge part files into the final output file
-    partFiles.foreach { partFile =>
-      FileUtils.writeByteArrayToFile(outputFile, FileUtils.readFileToByteArray(partFile), true)
+    // Create the output file and its parent directories if they don’t exist
+    val finalFile = new File(finalOutputFile)
+    finalFile.getParentFile.mkdirs()
+
+    // Create a writer for the final output file
+    val outputWriter = new BufferedWriter(new FileWriter(finalFile))
+
+    try {
+      partFiles.zipWithIndex.foreach { case (partFile, index) =>
+        val source = Source.fromFile(partFile)
+
+        try {
+          val lines = source.getLines()
+
+          // Write header only for the first file
+          if (index == 0 && lines.hasNext) {
+            outputWriter.write(lines.next()) // Write header line
+            outputWriter.newLine()
+          } else if (lines.hasNext) {
+            lines.next() // Skip header line in subsequent files
+          }
+
+          // Write the remaining lines of each part file
+          lines.foreach { line =>
+            outputWriter.write(line)
+            outputWriter.newLine()
+          }
+        } finally {
+          source.close()
+        }
+      }
+    } finally {
+      outputWriter.close()
     }
   }
 
@@ -231,17 +262,17 @@ object UtilityFunction extends Logging {
    * @param dataFrame : Transformed dataframe
    * @param keyword   : Keyword for schema identification
    */
-  private def writeCsvFile(dataFrame: DataFrame, keyword: String): Unit = {
+  private def writeCsvFile(dataFrame: DataFrame, keyword: String, extractedDate: Option[String]): Unit = {
     val tempOutputDir = s"$TempOutputDir/temp_$keyword"
     logger.info(s"Temporary directory for spark output: $tempOutputDir")
 
     logger.info("Write the transformed DataFrame to a separate CSV file")
-    dataFrame.write
+    dataFrame.write.mode(SaveMode.Overwrite)
       .option("header", "true")
       .option("delimiter", "|")
       .csv(tempOutputDir)
 
-    val finalOutputFile = s"$OutputCsvPath/$keyword.csv"
+    val finalOutputFile = s"$OutputCsvPath/${extractedDate.get}/$keyword.csv"
 
     // Merge the part files into a single CSV file
     mergePartFiles(tempOutputDir, finalOutputFile)

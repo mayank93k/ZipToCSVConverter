@@ -2,30 +2,12 @@
   "Population": {
     "keyword": "Population",
     "fields": [
-      {
-        "name": "Number",
-        "type": "StringType"
-      },
-      {
-        "name": "Year",
-        "type": "StringType"
-      },
-      {
-        "name": "Series",
-        "type": "StringType"
-      },
-      {
-        "name": "Value",
-        "type": "StringType"
-      },
-      {
-        "name": "Footnotes",
-        "type": "StringType"
-      },
-      {
-        "name": "Source",
-        "type": "StringType"
-      }
+      {"name": "Number", "type": "StringType"},
+      {"name": "Year", "type": "StringType"},
+      {"name": "Series", "type": "StringType"},
+      {"name": "Value", "type": "StringType"},
+      {"name": "Footnotes", "type": "StringType"},
+      {"name": "Source", "type": "StringType"}
     ]
   }
 }

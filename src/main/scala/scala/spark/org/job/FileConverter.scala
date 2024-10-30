@@ -24,10 +24,11 @@ object FileConverter extends Logging {
 
       // Find the most recent date partition and unzip all the files in the directory.
       val findMostRecentDateDir = findMostRecentDatePartition(ZipFileBaseDir, datePattern, dateFormatter)
-      val extractedFilePaths = unzipFilesInDir(findMostRecentDateDir, ExtractCsvFileDir)
+      val extractedRecentDateValue = datePattern.findFirstIn(findMostRecentDateDir)
+      val extractedFilePaths = unzipFilesInDir(findMostRecentDateDir, ExtractCsvFileDir, extractedRecentDateValue)
 
       logger.info("Started processing each extracted file based on its schema")
-      extractedFilePaths.foreach(filePath => readTransformAndWriteFile(spark, filePath, schemasRead))
+      extractedFilePaths.foreach(filePath => readTransformAndWriteFile(spark, filePath, schemasRead, extractedRecentDateValue))
     } finally {
       logger.info("Cleanup the temporary directory after processing")
       cleanupTempDir(TempOutputDir)
